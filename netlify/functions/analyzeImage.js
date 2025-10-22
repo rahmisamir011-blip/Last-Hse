@@ -1,97 +1,58 @@
-// netlify/functions/analyzeimage.js
-
-const { GoogleGenerativeAI } = require("@google/genai");
-const busboy = require('busboy');
-
-// دالة مساعدة لتحليل البيانات متعددة الأجزاء (صورة + حقول نصية)
-function parseMultipartForm(event) {
-  return new Promise((resolve, reject) => {
-    const fields = {};
-    const files = {};
-
-    const bb = busboy({ headers: event.headers });
-
-    bb.on('file', (name, file, info) => {
-      const { filename, mimeType } = info;
-      const chunks =;
-      file.on('data', (chunk) => chunks.push(chunk));
-      file.on('end', () => {
-        files[name] = {
-          filename,
-          mimeType,
-          content: Buffer.concat(chunks),
-        };
-      });
-    });
-
-    bb.on('field', (name, val) => {
-      fields[name] = val;
-    });
-
-    bb.on('close', () => {
-      resolve({ fields, files });
-    });
-
-    bb.on('error', err => {
-      reject(new Error(`Error parsing form: ${err.message}`));
-    });
-
-    bb.end(Buffer.from(event.body, 'base64'));
-  });
-}
-
-exports.handler = async (event) => {
-  try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY is not set.");
-    }
-
-    const { files } = await parseMultipartForm(event);
-    const imageFile = files.image;
-
-    if (!imageFile) {
-      return { statusCode: 400, body: JSON.stringify({ error: "No image file uploaded." }) };
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
-
-    const imagePart = {
-      inlineData: {
-        data: imageFile.content.toString("base64"),
-        mimeType: imageFile.mimeType,
-      },
-    };
-
-    // الأمر النصي يطلب من الذكاء الاصطناعي الإجابة بتنسيق JSON فقط
-    const prompt = `Analyze this image. Is the person wearing all required safety equipment for a pharmaceutical production line, specifically a charlotte, a bavette, and a full industry suit? Respond ONLY with a simple JSON object indicating the presence of each item, for example: {"charlotte": true, "bavette": true, "suit": false}. Do not add any other text or explanations.`;
-
-    const result = await model.generateContent([prompt, imagePart]);
-    const response = await result.response;
-    let analysisText = response.text();
+// Modern ES module syntax for Netlify functions
+export async function handler(event) {
     
-    // تنظيف الاستجابة للتأكد من أنها JSON صالح
-    analysisText = analysisText.replace(/```json/g, '').replace(/```/g, '').trim();
+    // 1. Get the API key from Netlify environment variables
+    const apiKey = process.env.GEMINI_API_KEY;
+    
+    if (!apiKey) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: "GEMINI_API_KEY is not set in Netlify." })
+        };
+    }
 
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
-      body: analysisText,
-    };
+    // 2. Get the payload (contents, etc.) from the client's request
+    let clientPayload;
+    try {
+        clientPayload = JSON.parse(event.body);
+    } catch (e) {
+        return {
+            statusCode: 400,
+            body: JSON.stringify({ error: "Invalid request body." })
+        };
+    }
 
-  } catch (error) {
-    console.error("Error processing request:", error);
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ error: error.message }),
-    };
-  }
-};
+    // 3. Construct the real Google API URL
+    const googleApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+    try {
+        // 4. Call the Google API securely from the server
+        const apiResponse = await fetch(googleApiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(clientPayload)
+        });
+
+        const responseBody = await apiResponse.text();
+
+        if (!apiResponse.ok) {
+            // Forward the error from Google
+            return {
+                statusCode: apiResponse.status,
+                body: responseBody
+            };
+        }
+
+        // 5. Send the successful response from Google back to the client
+        return {
+            statusCode: 200,
+            body: responseBody
+        };
+
+    } catch (error) {
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: `Serverless function error: ${error.message}` })
+        };
+    }
+}

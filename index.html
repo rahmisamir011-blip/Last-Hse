@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HSE Checker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" xintegrity="sha512-Fo3rlrZj/k7ujTnHg4CGR2D7kSs0wL2RjYg2c8b88M4ZlH5wA22R1wM2j+5x4N4eE0q/lQ+9V2Q8N2p2tQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        .modal-content {
+            background-color: white;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="app" class="min-h-screen max-w-2xl mx-auto flex flex-col p-4">
+
+        <!-- Language Toggle Button -->
+        <button id="lang-toggle-button" class="absolute top-4 right-4 bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-semibold flex items-center shadow-md hover:bg-gray-300 transition-colors z-10">
+            <span id="current-lang-text" class="ml-2">Français</span>
+            <i class="fas fa-language"></i>
+        </button>
+
+        <!-- Main Screen -->
+        <div id="main-screen" class="flex flex-col items-center justify-center text-center flex-grow">
+            <h1 class="text-5xl font-bold text-gray-800 mb-8" data-key="main_title">HSE Checker</h1>
+            <p class="text-lg text-gray-600 mb-12" data-key="main_description">تأكد من ارتداء معدات الوقاية الشخصية قبل دخول خط الإنتاج</p>
+            <button id="check-button" class="bg-red-500 hover:bg-red-600 text-white rounded-full w-48 h-48 flex items-center justify-center text-3xl font-bold shadow-lg transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-300" data-key="check_me_button">
+                افحصني
+            </button>
+        </div>
+
+        <!-- Image Source Modal -->
+        <div id="image-source-modal" class="modal fixed inset-0 flex items-end justify-center z-50 hidden">
+            <div class="modal-content bg-white w-full max-w-md rounded-t-lg p-6 shadow-lg">
+                <h3 class="text-2xl font-bold mb-4 text-center" data-key="choose_source_title">اختر مصدر الصورة</h3>
+                <div class="flex flex-col space-y-4">
+                    <button id="open-camera-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-6 rounded-lg text-xl flex items-center justify-center transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300">
+                        <i class="fas fa-camera ml-3"></i> <span data-key="open_camera">التقاط صورة</span>
+                    </button>
+                    <button id="choose-gallery-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-lg text-xl flex items-center justify-center transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300">
+                        <i class="fas fa-image ml-3"></i> <span data-key="choose_from_gallery">اختيار من المعرض</span>
+                    </button>
+                    <button id="cancel-modal-button" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg text-lg mt-4 transition-colors">
+                        <span data-key="cancel_button">إلغاء</span>
+                    </button>
+                </div>
+            </div>
+            <input type="file" id="image-input" class="hidden" accept="image/*">
+            <input type="file" id="camera-input" class="hidden" accept="image/*" capture="environment">
+        </div>
+
+
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="hidden flex-col items-center justify-center text-center flex-grow">
+            <div class="animate-spin rounded-full h-32 w-32 border-t-4 border-b-4 border-red-500"></div>
+            <p class="text-2xl font-bold mt-8 text-gray-700" data-key="loading_message">جاري التحليل...</p>
+            <p class="text-lg text-gray-500" data-key="loading_submessage">يقوم الذكاء الاصطناعي بفحص الصورة الآن</p>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="hidden flex flex-col w-full fade-in">
+            <h2 class="text-3xl font-bold text-center mb-6" data-key="results_title">نتائج الفحص</h2>
+            
+            <div id="image-container" class="relative w-full max-w-lg mx-auto mb-6 rounded-lg overflow-hidden shadow-lg">
+                <img id="uploaded-image" src="" alt="Uploaded Image for analysis" class="w-full h-auto">
+                <canvas id="overlay-canvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+            </div>
+
+            <div id="report-container" class="bg-white p-6 rounded-lg shadow-md">
+                <h3 class="text-2xl font-bold mb-4 border-b pb-2" data-key="detailed_report_title">التقرير التفصيلي</h3>
+                <ul id="report-list" class="space-y-3">
+                    <!-- Report items will be injected here -->
+                </ul>
+                <div id="final-verdict" class="mt-6 pt-4 border-t-2">
+                    <!-- Final verdict message here -->
+                </div>
+            </div>
+
+            <button id="reset-button" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg mt-8 text-xl transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-red-300" data-key="check_another_image_button">
+                فحص صورة أخرى
+            </button>
+        </div>
+
+    </div>
+
+    <script type="module">
+        // --- Translations ---
+        const translations = {
+            'ar': {
+                // UI Text
+                'main_title': 'HSE Checker',
+                'main_description': 'تأكد من ارتداء معدات الوقاية الشخصية قبل دخول خط الإنتاج',
+                'check_me_button': 'افحصني',
+                'choose_source_title': 'اختر مصدر الصورة',
+                'open_camera': 'التقاط صورة',
+                'choose_from_gallery': 'اختيار من المعرض',
+                'cancel_button': 'إلغاء',
+                'loading_message': 'جاري التحليل...',
+                'loading_submessage': 'يقوم الذكاء الاصطناعي بفحص الصورة الآن',
+                'results_title': 'نتائج الفحص',
+                'detailed_report_title': 'التقرير التفصيلي',
+                'check_another_image_button': 'فحص صورة أخرى',
+                'verdict_compliant': 'جميع معدات الوقاية الشخصية تم ارتداؤها بشكل صحيح. يمكنك دخول خط الإنتاج بأمان.',
+                'verdict_non_compliant': 'لا يمكنك دخول خط الإنتاج. يرجى التأكد من ارتداء جميع معدات الوقاية الشخصية بشكل صحيح.',
+                'error_message': 'حدث خطأ:',
+                'current_lang_display': 'Français', // Display name for other language
+                
+                // Gemini API Prompts
+                'gemini_language': 'Arabic',
+                'gemini_ppe_items_list': '"شارلوت للشعر" (Hairnet), "كمامة" (Mask), "البذلة المخصصة" (Protective suit), "قفازات اليدين" (Gloves), و "حذاء السلامة" (Safety shoes)',
+                'gemini_reason_correct': 'تم الارتداء بشكل صحيح',
+                'gemini_schema_item_desc': 'The name of the PPE item in Arabic.',
+                'gemini_schema_reason_desc': 'Reason for status in Arabic.'
+            },
+            'fr': {
+                // UI Text
+                'main_title': 'Vérificateur HSE',
+                'main_description': 'Assurez-vous de porter l\'équipement de protection individuelle avant d\'entrer dans la ligne de production',
+                'check_me_button': 'Vérifiez-moi',
+                'choose_source_title': 'Choisissez la source de l\'image',
+                'open_camera': 'Prendre une photo',
+                'choose_from_gallery': 'Choisir de la galerie',
+                'cancel_button': 'Annuler',
+                'loading_message': 'Analyse en cours...',
+                'loading_submessage': 'L\'IA analyse l\'image maintenant',
+                'results_title': 'Résultats de la vérification',
+                'detailed_report_title': 'Rapport détaillé',
+                'check_another_image_button': 'Vérifier une autre image',
+                'verdict_compliant': 'Tous les EPP requis sont portés correctement. Vous pouvez entrer dans la ligne de production en toute sécurité.',
+                'verdict_non_compliant': 'Vous ne pouvez pas entrer dans la ligne de production. Veuillez vous assurer que tous les EPP sont portés correctement.',
+                'error_message': 'Une erreur est survenue:',
+                'current_lang_display': 'العربية', // Display name for other language
+
+                // Gemini API Prompts
+                'gemini_language': 'French',
+                'gemini_ppe_items_list': '"Filet à cheveux" (Hairnet), "Masque" (Mask), "Combinaison de protection" (Protective suit), "Gants" (Gloves), et "Chaussures de sécurité" (Safety shoes)',
+                'gemini_reason_correct': 'Porté correctement',
+                'gemini_schema_item_desc': 'The name of the PPE item in French.',
+                'gemini_schema_reason_desc': 'Reason for status in French.'
+            }
+        };
+
+        let currentLang = 'ar'; // Default language
+
+        // --- DOM Elements ---
+        const mainScreen = document.getElementById('main-screen');
+        const loadingScreen = document.getElementById('loading-screen');
+        const resultScreen = document.getElementById('result-screen');
+        const checkButton = document.getElementById('check-button');
+        const imageInput = document.getElementById('image-input');
+        const cameraInput = document.getElementById('camera-input'); 
+        const resetButton = document.getElementById('reset-button');
+        const uploadedImage = document.getElementById('uploaded-image');
+        const canvas = document.getElementById('overlay-canvas');
+        const reportList = document.getElementById('report-list');
+        const finalVerdict = document.getElementById('final-verdict');
+        const ctx = canvas.getContext('2d');
+
+        // Modal elements
+        const imageSourceModal = document.getElementById('image-source-modal');
+        const openCameraButton = document.getElementById('open-camera-button');
+        const chooseGalleryButton = document.getElementById('choose-gallery-button');
+        const cancelModalButton = document.getElementById('cancel-modal-button');
+
+        // Language toggle elements
+        const langToggleButton = document.getElementById('lang-toggle-button');
+        const currentLangText = document.getElementById('current-lang-text');
+
+
+        // --- State Management ---
+        function showScreen(screen) {
+            mainScreen.classList.add('hidden');
+            loadingScreen.classList.add('hidden');
+            resultScreen.classList.add('hidden');
+            imageSourceModal.classList.add('hidden'); 
+
+            screen.classList.remove('hidden');
+            screen.classList.add('flex', 'flex-col'); 
+            if (screen === mainScreen || screen === loadingScreen) {
+                 screen.classList.add('items-center', 'justify-center', 'text-center', 'flex-grow');
+            }
+            updateLanguageDisplay(); 
+        }
+
+        function showModal(modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.body.style.overflow = 'hidden'; 
+        }
+
+        function hideModal(modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.body.style.overflow = ''; 
+        }
+
+
+        // --- Event Listeners ---
+        checkButton.addEventListener('click', () => showModal(imageSourceModal)); 
+        openCameraButton.addEventListener('click', () => {
+            hideModal(imageSourceModal);
+            cameraInput.click(); 
+        });
+        chooseGalleryButton.addEventListener('click', () => {
+            hideModal(imageSourceModal);
+            imageInput.click(); 
+        });
+        cancelModalButton.addEventListener('click', () => hideModal(imageSourceModal));
+
+        imageInput.addEventListener('change', handleImageUpload);
+        cameraInput.addEventListener('change', handleImageUpload); 
+        resetButton.addEventListener('click', resetApp);
+        langToggleButton.addEventListener('click', toggleLanguage);
+        
+        // Initial language setup
+        document.addEventListener('DOMContentLoaded', () => {
+            setLanguage(currentLang);
+        });
+
+
+        // --- Language Logic ---
+        function setLanguage(lang) {
+            currentLang = lang;
+            const elements = document.querySelectorAll('[data-key]');
+            elements.forEach(el => {
+                const key = el.getAttribute('data-key');
+                if (translations[currentLang] && translations[currentLang][key]) {
+                    el.textContent = translations[currentLang][key];
+                }
+            });
+            
+            document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+            document.documentElement.lang = currentLang;
+            updateLanguageDisplay();
+        }
+
+        function toggleLanguage() {
+            currentLang = (currentLang === 'ar') ? 'fr' : 'ar';
+            setLanguage(currentLang);
+        }
+
+        function updateLanguageDisplay() {
+            const langDir = currentLang === 'ar' ? 'rtl' : 'ltr';
+            if (langDir === 'rtl') {
+                langToggleButton.style.flexDirection = 'row-reverse'; 
+                langToggleButton.classList.remove('left-4');
+                langToggleButton.classList.add('right-4');
+                currentLangText.textContent = translations['ar']['current_lang_display'];
+            } else {
+                langToggleButton.style.flexDirection = 'row'; 
+                langToggleButton.classList.remove('right-4');
+                langToggleButton.classList.add('left-4');
+                currentLangText.textContent = translations['fr']['current_lang_display'];
+            }
+        }
+
+        // --- App Logic ---
+        function resetApp() {
+            imageInput.value = '';
+            cameraInput.value = ''; 
+            uploadedImage.src = '';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            reportList.innerHTML = '';
+            finalVerdict.innerHTML = '';
+            showScreen(mainScreen);
+            setLanguage(currentLang); 
+        }
+
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // Show loading screen immediately
+            showScreen(loadingScreen);
+
+            const reader = new FileReader();
+            reader.onload = e => {
+                // 1. Attach the 'onload' listener FIRST
+                uploadedImage.onload = () => {
+                    analyzeImage(e.target.result);
+                };
+                // 2. THEN set the image source
+                uploadedImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        async function analyzeImage(imageDataUrl) {
+            const base64ImageData = imageDataUrl.split(',')[1];
+            
+            const langConfig = translations[currentLang];
+            
+            const systemPrompt = `You are an AI-powered Health, Safety, and Environment (HSE) compliance officer for a pharmaceutical factory. 
+            Your task is to analyze an image of a worker and determine if they are wearing the required Personal Protective Equipment (PPE) correctly. 
+            The required PPE items in ${langConfig.gemini_language} are: ${langConfig.gemini_ppe_items_list}.
+            You must identify the status of each required item: 'Correct' if worn properly, 'Incorrect' if worn improperly, or 'Missing' if not visible.
+            For each item, provide its location as a bounding box with normalized coordinates (0 to 1). If an item is missing, provide an approximate bounding box for where it should be.
+            You must respond ONLY with a valid JSON object that conforms to the provided schema. 
+            The item name and reason must be in ${langConfig.gemini_language}.
+            For 'Correct' status, the reason must be '${langConfig.gemini_reason_correct}'.`;
+
+            const userPrompt = `Analyze the provided image and report the status of all required PPE items according to the schema. The item name and reason must be in ${langConfig.gemini_language}.`;
+
+            const payload = {
+                contents: [{
+                    parts: [
+                        { text: userPrompt },
+                        { inlineData: { mimeType: "image/jpeg", data: base64ImageData } }
+                    ]
+                }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "ARRAY",
+                        items: {
+                            type: "OBJECT",
+                            properties: {
+                                "item": { 
+                                    "type": "STRING", 
+                                    "description": langConfig.gemini_schema_item_desc 
+                                },
+                                "status": { "type": "STRING", "enum": ["Correct", "Incorrect", "Missing"] },
+                                "reason": { 
+                                    "type": "STRING", 
+                                    "description": langConfig.gemini_schema_reason_desc 
+                                },
+                                "boundingBox": {
+                                    type: "OBJECT",
+                                    description: "Bounding box with normalized coordinates (0-1).",
+                                    properties: {
+                                        x: { "type": "NUMBER" },
+                                        y: { "type": "NUMBER" },
+                                        width: { "type": "NUMBER" },
+                                        height: { "type": "NUMBER" }
+                                    },
+                                    required: ["x", "y", "width", "height"]
+                                }
+                            },
+                            required: ["item", "status", "reason", "boundingBox"]
+                        }
+                    }
+                }
+            };
+            
+            try {
+                const results = await callNetlifyFunction(payload); 
+                displayResults(results);
+            } catch (error) {
+                console.error("API call failed:", error);
+                displayError(error.message);
+            }
+        }
+
+        async function callNetlifyFunction(payload) {
+            // ***** THIS IS THE CORRECT LINE *****
+            // It MUST be 'analyzeImage' with a capital 'I'
+            const apiUrl = '/.netlify/functions/analyzeImage';
+            
+            let response;
+            try {
+                 response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    let errorJson = {};
+                    try {
+                        errorJson = JSON.parse(errorBody);
+                    } catch (e) {
+                        throw new Error(`API request failed with status ${response.status}: ${errorBody}`);
+                    }
+                    throw new Error(`Function Error: ${errorJson.error || errorBody}`);
+                }
+            } catch (networkError) {
+                 throw new Error(`Network error: ${networkError.message}`);
+            }
+
+            const result = await response.json();
+            
+            const candidate = result.candidates?.[0];
+
+            if (!candidate || !candidate.content?.parts?.[0]?.text) {
+                throw new Error("Invalid response structure from Gemini API.");
+            }
+            
+            return JSON.parse(candidate.content.parts[0].text);
+        }
+
+        function displayResults(results) {
+            canvas.width = uploadedImage.clientWidth;
+            canvas.height = uploadedImage.clientHeight;
+            
+            reportList.innerHTML = '';
+            let allCompliant = true;
+
+            results.forEach(item => {
+                const isCompliant = item.status === 'Correct';
+                if (!isCompliant) {
+                    allCompliant = false;
+                }
+
+                const { x, y, width, height } = item.boundingBox;
+                ctx.strokeStyle = isCompliant ? 'rgba(34, 197, 94, 0.9)' : 'rgba(239, 68, 68, 0.9)';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(x * canvas.width, y * canvas.height, width * canvas.width, height * canvas.height);
+
+                const listItem = document.createElement('li');
+                listItem.className = 'flex items-center text-lg';
+                
+                const translatedItemName = item.item;
+                const itemReason = item.reason;
+
+                listItem.innerHTML = `
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center ml-4 ${isCompliant ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                        ${isCompliant ? 
+                            '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>' :
+                            '<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>'}
+                    </div>
+                    <div>
+                        <span class="font-bold">${translatedItemName}:</span>
+                        <span class="text-gray-600">${itemReason}</span>
+                    </div>
+                `;
+                reportList.appendChild(listItem);
+            });
+
+            const langConfig = translations[currentLang];
+            finalVerdict.innerHTML = allCompliant ? `
+                <div class="flex items-center text-green-700 bg-green-100 p-4 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 ml-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p class="font-bold text-lg">${langConfig.verdict_compliant}</p>
+                </div>
+            ` : `
+                <div class="flex items-center text-red-700 bg-red-100 p-4 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 ml-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <!-- **** THIS IS THE FIX for the 'verDdict' typo **** -->
+                    <p class="font-bold text-lg">${langConfig.verdict_non_compliant}</p>
+                </div>
+            `;
+
+            showScreen(resultScreen);
+        }
+
+        function displayError(message) {
+            const langConfig = translations[currentLang];
+            finalVerdict.innerHTML = `
+                <div class="flex items-center text-red-700 bg-red-100 p-4 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 ml-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                    <p class="font-bold text-lg">${langConfig.error_message} ${message}</p>
+                </div>
+            `;
+            showScreen(resultScreen);
+a            reportList.innerHTML = ''; 
+            loadingScreen.classList.add('hidden'); 
+        }
+
+    </script>
+</body>
+</html>
+
+

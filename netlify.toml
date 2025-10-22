@@ -1,3 +1,12 @@
+# netlify.toml
+
 [build]
-  # This tells Netlify where your serverless functions are
+  # لا يوجد أمر بناء لأننا نستخدم HTML بسيط
+  # publish هو المجلد الجذر حيث يوجد index.html
+  publish = "/"
   functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200

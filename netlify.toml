@@ -1,2 +1,8 @@
 [build]
+  # هذا يخبر Netlify بمكان الدوال السحابية
   functions = "netlify/functions"
+  # هذا يخبر Netlify بمكان ملفك الرئيسي
+  publish = "."
+
+[functions]
+  node_bundler = "esbuild"
